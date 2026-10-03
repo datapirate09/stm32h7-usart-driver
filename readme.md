@@ -1,4 +1,5 @@
 # STM32H7 USART Driver
+Register Level USART driver for the STM32H7A3
 
 Register-level USART driver for the STM32H7A3 (Nucleo-H7A3ZI-Q), built without 
 HAL or CubeMX-generated peripheral code. Includes a printf-retargeting logger 
