@@ -1,0 +1,215 @@
+#include <usart.h>
+#include "stm32h7a3xxq.h"
+
+USART_TypeDef *instance = USART3;
+
+static void usart_config_word_length(usart_word_length word_length);
+static void usart_config_stop_bits(usart_stop_bits stop_bits);
+static uint32_t get_clock_frequency(usart_clock_source clock_source,
+                                    clock_prescaler prescaler);
+static uint32_t get_pclk1_frequency(void);
+static uint32_t get_hsi_ker_frequency(void);
+static uint32_t get_csi_ker_frequency(void);
+static uint32_t get_lse_frequency(void);
+static void usart_config_baud_rate(usart_baud_rate baud_rate,struct usart_clock_config* clock_config);
+
+
+void usart_init(usart_instance usart_instance, struct usart_clock_config *clock_config) {
+	switch(usart_instance) {
+	case USART_INSTANCE_3:
+		// enable gpio alternate functions and apb clocks
+		instance = USART3;
+		RCC->AHB4ENR |= (1U << 3);
+		RCC->APB1LENR |= (1U << 18);
+		GPIOD->MODER &= ~(1U << 16);
+		GPIOD->MODER |= (1U << 17);
+		GPIOD->MODER &= ~(1U << 18);
+		GPIOD->MODER |= (1U << 19);
+		GPIOD->AFR[1] &= ~(0xFU << 0); // set the mux to get uart alternate fn to the gpio
+		GPIOD->AFR[1] |= (7U << 0);
+		GPIOD->AFR[1] &= ~(0xF << 4); // set rx mux for alternate fn gpio
+		GPIOD->AFR[1] |= (7U << 4);
+		break;
+
+	default:
+		break;
+	}
+	RCC->CDCCIP2R &= ~(0b111);
+	RCC->CDCCIP2R |= (clock_config->clock_source);
+}
+
+static void usart_config_word_length(usart_word_length word_length) {
+    switch (word_length)
+    {
+        case USART_DATA_BITS_8:
+        	instance->CR1 &= ~(1U << 28);
+        	instance->CR1 &= ~(1U << 12);
+            break;
+
+        case USART_DATA_BITS_9:
+        	instance->CR1 &= ~(1U << 28);
+			instance->CR1 |= (1U << 12);
+            break;
+
+        case USART_DATA_BITS_7:
+        	instance->CR1 |= (1U << 28);
+			instance->CR1 &= ~(1U << 12);
+            break;
+
+        default:
+            break;
+    }
+}
+
+static void usart_config_stop_bits(usart_stop_bits stop_bits) {
+	switch(stop_bits) {
+	case USART_STOP_BITS_1:
+		instance->CR2 &= ~(1U << 13);
+		instance->CR2 &= ~(1U << 12);
+		break;
+	case USART_STOP_BITS_0_5:
+		instance->CR2 &= ~(1U << 13);
+		instance->CR2 |= (1U << 12);
+		break;
+	case USART_STOP_BITS_2:
+		instance->CR2 |= (1U << 13);
+		instance->CR2 &= ~(1U << 12);
+		break;
+	case USART_STOP_BITS_1_5:
+		instance->CR2 |= (1U << 13);
+		instance->CR2 |= (1U << 12);
+		break;
+	default:
+		break;
+	}
+}
+
+static uint32_t get_clock_frequency(usart_clock_source clock_source,
+                                    clock_prescaler prescaler) {
+    static const uint32_t prescaler_values[] =
+    {
+        1,
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        16,
+        32,
+        64,
+        128,
+        256
+    };
+    uint32_t clock_frequency = 0;
+    switch (clock_source)
+    {
+        case RCC_PCKL1:
+            clock_frequency = get_pclk1_frequency();
+            break;
+
+        case PLL2_Q_CK:
+//            clock_frequency = get_pll2_q_frequency();
+            break;
+
+        case PLL3_Q_CK:
+//            clock_frequency = get_pll3_q_frequency();
+            break;
+
+        case HSI_KER_CK:
+            clock_frequency = get_hsi_ker_frequency();
+            break;
+
+        case CSI_KER_CK:
+            clock_frequency = get_csi_ker_frequency();
+            break;
+
+        case LSE_CK:
+            clock_frequency = get_lse_frequency();
+            break;
+
+        default:
+            return 0;
+    }
+    if (prescaler >= PRESCALE_LAST_VALUE)
+        return 0;
+    return clock_frequency / prescaler_values[prescaler];
+}
+
+static uint32_t get_pclk1_frequency(void) {
+    return 64000000U;
+}
+
+static uint32_t get_hsi_ker_frequency(void) {
+    return 64000000U;
+}
+
+static uint32_t get_csi_ker_frequency(void) {
+    return 4000000U;
+}
+
+static uint32_t get_lse_frequency(void) {
+    return 32768U;
+}
+
+static void usart_config_baud_rate(usart_baud_rate baud_rate,struct usart_clock_config* clock_config) {
+	uint32_t scaled_value = get_clock_frequency(clock_config->clock_source, clock_config->prescaler);
+	instance->BRR = (uint16_t)(scaled_value/baud_rate);
+}
+
+void usart_config(struct usart_config* config, struct usart_clock_config* clock_config) {
+    usart_config_word_length(config->word_length);
+    instance->PRESC = clock_config->prescaler;
+    if (config->is_fifo_en) instance->CR1 |= (1U << 29);
+    else instance->CR1 &= ~(1U << 29);
+    if (config->is_fifo_en) {
+		instance->CR1 |= (1U << 10);
+		if (config->parity == USART_EVEN_PARITY) instance->CR1 &= ~(1U << 9);
+		else instance->CR1 |= (1U << 9);
+    }
+    instance->CR3 = ((instance->CR3 & ~(1U << 4)) | ((config->noise_config ? 1U: 0U) << 4));
+    usart_config_baud_rate(config->baud_rate, clock_config);
+    usart_config_stop_bits(config->stop_bits);
+    instance->CR1 |= (1U << 0);
+}
+
+void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size) {
+	instance->CR1 |= (1U << 3);
+	for(uint16_t i=0;i<buffer_size;i++) {
+		while(!(instance->ISR & 1U << 7)); // same bit used for fifo_en or not. if fifo_en bit states if fifo is empty and can be written. if not it is info about tx_rdr register if its moved its data to shift reg or not
+		instance->TDR = *(usart_data_out+i);
+	}
+	while(!(instance->ISR & 1U << 6));
+	instance->CR1 &= ~(1U << 3);
+}
+
+usart_status usart_receive_data(uint8_t *usart_data_in, uint16_t buffer_size) {
+	instance->CR1 |= (1U << 2);
+	for(uint16_t i=0;i<buffer_size;i++) {
+		while(!(instance->ISR & 1U << 5));
+		if (instance->ISR & 1U << 3) {
+			//overrun detected do something
+			instance->ICR |= (1U << 3);
+			instance->CR1 &= ~(1U << 2); // re disable
+			return STATUS_USART_OVERRUN_ERROR;
+		}
+		*(usart_data_in+i) = instance->RDR;
+
+		if (instance->ISR & (1U << 2)) {
+			// noise detected in the corresponding byte
+			instance->ICR |= (1U << 2);
+			instance->CR1 &= ~(1U << 2); // re disable
+			return STATUS_USART_NOISE_ERROR;
+		}
+
+		if (instance->ISR & (1U << 1)) {
+			//framing error
+			instance->ICR |= (1U << 1);
+			instance->CR1 &= ~(1U << 2); // re disable
+			return STATUS_USART_FRAMING_ERROR;
+		}
+	}
+	instance->CR1 &= ~(1U << 2);
+	return STATUS_OK;
+}
+
