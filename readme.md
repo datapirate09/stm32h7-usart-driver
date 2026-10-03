@@ -8,6 +8,7 @@ found in all the other projects.
 
 ## Features
 - Configurable instance, baud rate, word length, parity, stop bits
+- Ability to configure and run multiple USART instances at once 
 - Optional FIFO mode support
 - Blocking transmit/receive with error detection (overrun, noise, framing)
 - Clock source selection for the USART kernel clock(PCLK1, HSI kernel clock, CSI kernel clock, LSE)

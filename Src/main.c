@@ -12,7 +12,7 @@ struct usart_clock_config clock_config = {
 
 struct usart_config usart_kernel_config = {
 		.baud_rate = USART_BAUD_RATE_9600,
-		.instance = USART_INSTANCE_3,
+		.instance = USART_INSTANCE_1,
 		.is_fifo_en = 0,
 		.is_parity_enable = 1,
 		.parity = USART_EVEN_PARITY,
@@ -21,7 +21,7 @@ struct usart_config usart_kernel_config = {
 		.noise_config = USART_NOISE_DETECTION_ENABLE,
 };
 
-usart_instance instance_used = USART_INSTANCE_3;
+USART_TypeDef *instance_handle;
 
 uint8_t transmit_buffer[BUFFER_SIZE];
 uint8_t receive_buffer[BUFFER_SIZE];
@@ -31,10 +31,10 @@ usart_mode current_mode = USART_TRANSMIT;
 int main() {
 	logger_init();
 	printf("Starting USART Example Application\n");
-	while(1);
 
-	usart_init(instance_used, &clock_config);
-	usart_config(&usart_kernel_config, &clock_config);
+	instance_handle = usart_get_instance_handle(usart_kernel_config.instance);
+	usart_init(usart_kernel_config.instance, &clock_config);
+	usart_config(&usart_kernel_config, &clock_config, instance_handle);
 	// initialization and configuration done
 	while(1) {
 		usart_example_process_action();
@@ -47,12 +47,12 @@ void usart_example_process_action(void) {
 		for(uint16_t i=0;i<BUFFER_SIZE;i++) {
 			transmit_buffer[i] = (uint8_t)(i+1);
 		}
-		usart_transmit_data(transmit_buffer, sizeof(transmit_buffer)/sizeof(uint8_t));
+		usart_transmit_data(transmit_buffer, sizeof(transmit_buffer)/sizeof(uint8_t), instance_handle);
 		break;
 
 
 	case USART_RECEIVE:
-		usart_receive_data(receive_buffer, sizeof(receive_buffer)/sizeof(uint8_t));
+		usart_receive_data(receive_buffer, sizeof(receive_buffer)/sizeof(uint8_t), instance_handle);
 		break;
 
 	default:

@@ -1,24 +1,32 @@
 #include <usart.h>
-#include "stm32h7a3xxq.h"
 
-USART_TypeDef *instance = USART3;
-
-static void usart_config_word_length(usart_word_length word_length);
-static void usart_config_stop_bits(usart_stop_bits stop_bits);
+static void usart_config_word_length(usart_word_length word_length, USART_TypeDef* instance);
+static void usart_config_stop_bits(usart_stop_bits stop_bits, USART_TypeDef* instance);
 static uint32_t get_clock_frequency(usart_clock_source clock_source,
                                     clock_prescaler prescaler);
 static uint32_t get_pclk1_frequency(void);
 static uint32_t get_hsi_ker_frequency(void);
 static uint32_t get_csi_ker_frequency(void);
 static uint32_t get_lse_frequency(void);
-static void usart_config_baud_rate(usart_baud_rate baud_rate,struct usart_clock_config* clock_config);
+static void usart_config_baud_rate(usart_baud_rate baud_rate,struct usart_clock_config* clock_config, USART_TypeDef* instance);
 
+USART_TypeDef* usart_get_instance_handle(usart_instance instance) {
+	switch(instance) {
+	case USART_INSTANCE_1:
+		return USART1;
+	case USART_INSTANCE_2:
+		return USART2;
+	case USART_INSTANCE_3:
+		return USART3;
+	default:
+		return USART1;
+	}
+}
 
 void usart_init(usart_instance usart_instance, struct usart_clock_config *clock_config) {
 	switch(usart_instance) {
 	case USART_INSTANCE_3:
 		// enable gpio alternate functions and apb clocks
-		instance = USART3;
 		RCC->AHB4ENR |= (1U << 3);
 		RCC->APB1LENR |= (1U << 18);
 		GPIOD->MODER &= ~(1U << 16);
@@ -38,7 +46,7 @@ void usart_init(usart_instance usart_instance, struct usart_clock_config *clock_
 	RCC->CDCCIP2R |= (clock_config->clock_source);
 }
 
-static void usart_config_word_length(usart_word_length word_length) {
+static void usart_config_word_length(usart_word_length word_length, USART_TypeDef* instance) {
     switch (word_length)
     {
         case USART_DATA_BITS_8:
@@ -61,7 +69,7 @@ static void usart_config_word_length(usart_word_length word_length) {
     }
 }
 
-static void usart_config_stop_bits(usart_stop_bits stop_bits) {
+static void usart_config_stop_bits(usart_stop_bits stop_bits, USART_TypeDef* instance) {
 	switch(stop_bits) {
 	case USART_STOP_BITS_1:
 		instance->CR2 &= ~(1U << 13);
@@ -152,13 +160,13 @@ static uint32_t get_lse_frequency(void) {
     return 32768U;
 }
 
-static void usart_config_baud_rate(usart_baud_rate baud_rate,struct usart_clock_config* clock_config) {
+static void usart_config_baud_rate(usart_baud_rate baud_rate,struct usart_clock_config* clock_config, USART_TypeDef* instance) {
 	uint32_t scaled_value = get_clock_frequency(clock_config->clock_source, clock_config->prescaler);
 	instance->BRR = (uint16_t)(scaled_value/baud_rate);
 }
 
-void usart_config(struct usart_config* config, struct usart_clock_config* clock_config) {
-    usart_config_word_length(config->word_length);
+void usart_config(struct usart_config* config, struct usart_clock_config* clock_config, USART_TypeDef* instance) {
+    usart_config_word_length(config->word_length, instance);
     instance->PRESC = clock_config->prescaler;
     if (config->is_fifo_en) instance->CR1 |= (1U << 29);
     else instance->CR1 &= ~(1U << 29);
@@ -168,12 +176,12 @@ void usart_config(struct usart_config* config, struct usart_clock_config* clock_
 		else instance->CR1 |= (1U << 9);
     }
     instance->CR3 = ((instance->CR3 & ~(1U << 4)) | ((config->noise_config ? 1U: 0U) << 4));
-    usart_config_baud_rate(config->baud_rate, clock_config);
-    usart_config_stop_bits(config->stop_bits);
+    usart_config_baud_rate(config->baud_rate, clock_config, instance);
+    usart_config_stop_bits(config->stop_bits, instance);
     instance->CR1 |= (1U << 0);
 }
 
-void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size) {
+void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size, USART_TypeDef* instance) {
 	instance->CR1 |= (1U << 3);
 	for(uint16_t i=0;i<buffer_size;i++) {
 		while(!(instance->ISR & 1U << 7)); // same bit used for fifo_en or not. if fifo_en bit states if fifo is empty and can be written. if not it is info about tx_rdr register if its moved its data to shift reg or not
@@ -183,7 +191,7 @@ void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size) {
 	instance->CR1 &= ~(1U << 3);
 }
 
-usart_status usart_receive_data(uint8_t *usart_data_in, uint16_t buffer_size) {
+usart_status usart_receive_data(uint8_t *usart_data_in, uint16_t buffer_size, USART_TypeDef* instance) {
 	instance->CR1 |= (1U << 2);
 	for(uint16_t i=0;i<buffer_size;i++) {
 		while(!(instance->ISR & 1U << 5));

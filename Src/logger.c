@@ -1,6 +1,8 @@
 #include "logger.h"
 #include "usart.h"
 
+USART_TypeDef* logger_instance;
+
 struct usart_clock_config logger_clock_config = {
 		.clock_source = RCC_PCKL1,
 		.prescaler = PRESCALE_BY_1,
@@ -19,12 +21,13 @@ struct usart_config logger_kernel_config = {
 
 
 void logger_init(void) {
-	usart_init(USART_INSTANCE_3, &logger_clock_config);
-	usart_config(&logger_kernel_config, &logger_clock_config);
+	logger_instance = usart_get_instance_handle(logger_kernel_config.instance);
+	usart_init(logger_kernel_config.instance, &logger_clock_config);
+	usart_config(&logger_kernel_config, &logger_clock_config, logger_instance);
 }
 
 int __io_putchar(int ch) {
 	uint8_t byte = (uint8_t)ch;
-	usart_transmit_data(&byte, 1);
+	usart_transmit_data(&byte, 1, logger_instance);
 	return ch;
 }

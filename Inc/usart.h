@@ -1,7 +1,11 @@
 #include <stdint.h>
+#include "stm32h7a3xxq.h"
+
 
 typedef enum {
-    USART_INSTANCE_3 = 0,
+	USART_INSTANCE_1 = 0,
+	USART_INSTANCE_2 = 1,
+    USART_INSTANCE_3 = 2,
 } usart_instance;
 
 typedef enum {
@@ -92,7 +96,8 @@ struct usart_clock_config {
 	clock_prescaler prescaler;
 };
 
+USART_TypeDef* usart_get_instance_handle(usart_instance instance);
 void usart_init(usart_instance usart_instance, struct usart_clock_config *clock_config);
-void usart_config(struct usart_config* config, struct usart_clock_config* clock_config);
-void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size);
-usart_status usart_receive_data(uint8_t *usart_data_in, uint16_t buffer_size);
+void usart_config(struct usart_config* config, struct usart_clock_config* clock_config, USART_TypeDef* instance);
+void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size, USART_TypeDef* instance);
+usart_status usart_receive_data(uint8_t *usart_data_in, uint16_t buffer_size, USART_TypeDef* instance);
