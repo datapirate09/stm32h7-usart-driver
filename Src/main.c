@@ -6,7 +6,7 @@
 void usart_example_process_action(void);
 
 struct usart_clock_config clock_config = {
-		.clock_source = RCC_PCKL1,
+		.clock_source = RCC_PCLK,
 		.prescaler = PRESCALE_BY_1,
 };
 
@@ -34,7 +34,9 @@ int main() {
 
 	instance_handle = usart_get_instance_handle(usart_kernel_config.instance);
 	usart_init(usart_kernel_config.instance, &clock_config);
+	printf("USART initialized successfully\n");
 	usart_config(&usart_kernel_config, &clock_config, instance_handle);
+	printf("USART configuration set successfully\n");
 	// initialization and configuration done
 	while(1) {
 		usart_example_process_action();
@@ -48,11 +50,15 @@ void usart_example_process_action(void) {
 			transmit_buffer[i] = (uint8_t)(i+1);
 		}
 		usart_transmit_data(transmit_buffer, sizeof(transmit_buffer)/sizeof(uint8_t), instance_handle);
+		printf("Data transmitted successfully\n");
 		break;
 
 
 	case USART_RECEIVE:
-		usart_receive_data(receive_buffer, sizeof(receive_buffer)/sizeof(uint8_t), instance_handle);
+		usart_status status = usart_receive_data(receive_buffer, sizeof(receive_buffer)/sizeof(uint8_t), instance_handle);
+		if (status != STATUS_OK) {
+			printf("Receive error detected\n");
+		}
 		break;
 
 	default:

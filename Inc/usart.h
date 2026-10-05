@@ -48,7 +48,7 @@ typedef enum {
 } usart_noise_config;
 
 typedef enum {
-	RCC_PCKL1 = 0,
+	RCC_PCLK = 0,
 	PLL2_Q_CK = 1,
 	PLL3_Q_CK = 2,
 	HSI_KER_CK = 3,

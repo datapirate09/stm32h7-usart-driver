@@ -25,6 +25,17 @@ USART_TypeDef* usart_get_instance_handle(usart_instance instance) {
 
 void usart_init(usart_instance usart_instance, struct usart_clock_config *clock_config) {
 	switch(usart_instance) {
+	case USART_INSTANCE_1:
+		RCC->AHB4ENR |= (1U << 0);
+		RCC->APB2ENR |= (1U << 4);
+		GPIOA->MODER &= ~(1U << 18);
+		GPIOA->MODER |= (1U << 19);
+		GPIOA->MODER &= ~(1U << 20);
+		GPIOA->MODER |= (1U << 21);
+		GPIOA->AFR[1] |= (7U << 4);
+		GPIOA->AFR[1] |= (7U << 8);
+		RCC->CDCCIP2R &= ~(0b111 << 3);
+		RCC->CDCCIP2R |= (clock_config->clock_source << 3);
 	case USART_INSTANCE_3:
 		// enable gpio alternate functions and apb clocks
 		RCC->AHB4ENR |= (1U << 3);
@@ -37,13 +48,13 @@ void usart_init(usart_instance usart_instance, struct usart_clock_config *clock_
 		GPIOD->AFR[1] |= (7U << 0);
 		GPIOD->AFR[1] &= ~(0xF << 4); // set rx mux for alternate fn gpio
 		GPIOD->AFR[1] |= (7U << 4);
+		RCC->CDCCIP2R &= ~(0b111);
+		RCC->CDCCIP2R |= (clock_config->clock_source);
 		break;
-
 	default:
 		break;
 	}
-	RCC->CDCCIP2R &= ~(0b111);
-	RCC->CDCCIP2R |= (clock_config->clock_source);
+
 }
 
 static void usart_config_word_length(usart_word_length word_length, USART_TypeDef* instance) {
@@ -112,7 +123,7 @@ static uint32_t get_clock_frequency(usart_clock_source clock_source,
     uint32_t clock_frequency = 0;
     switch (clock_source)
     {
-        case RCC_PCKL1:
+        case RCC_PCLK:
             clock_frequency = get_pclk1_frequency();
             break;
 

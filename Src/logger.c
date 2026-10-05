@@ -4,7 +4,7 @@
 USART_TypeDef* logger_instance;
 
 struct usart_clock_config logger_clock_config = {
-		.clock_source = RCC_PCKL1,
+		.clock_source = RCC_PCLK,
 		.prescaler = PRESCALE_BY_1,
 };
 
