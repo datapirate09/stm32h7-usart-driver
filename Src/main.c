@@ -49,7 +49,7 @@ void usart_example_process_action(void) {
 		for(uint16_t i=0;i<BUFFER_SIZE;i++) {
 			transmit_buffer[i] = (uint8_t)(i+1);
 		}
-		usart_transmit_data(transmit_buffer, sizeof(transmit_buffer)/sizeof(uint8_t), instance_handle);
+		usart_transmit_data(transmit_buffer, sizeof(transmit_buffer)/sizeof(uint8_t), instance_handle, 0);
 		printf("Data transmitted successfully\n");
 		break;
 

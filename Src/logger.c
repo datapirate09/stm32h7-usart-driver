@@ -28,6 +28,6 @@ void logger_init(void) {
 
 int __io_putchar(int ch) {
 	uint8_t byte = (uint8_t)ch;
-	usart_transmit_data(&byte, 1, logger_instance);
+	usart_transmit_data(&byte, 1, logger_instance, 0);
 	return ch;
 }

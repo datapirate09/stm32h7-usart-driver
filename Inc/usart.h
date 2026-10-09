@@ -96,8 +96,11 @@ struct usart_clock_config {
 	clock_prescaler prescaler;
 };
 
+typedef void (*usart_callback)(void);
+
 USART_TypeDef* usart_get_instance_handle(usart_instance instance);
 void usart_init(usart_instance usart_instance, struct usart_clock_config *clock_config);
 void usart_config(struct usart_config* config, struct usart_clock_config* clock_config, USART_TypeDef* instance);
-void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size, USART_TypeDef* instance);
+void usart_register_callback(usart_callback app_callback);
+void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size, USART_TypeDef* instance, uint8_t transfer_type);
 usart_status usart_receive_data(uint8_t *usart_data_in, uint16_t buffer_size, USART_TypeDef* instance);

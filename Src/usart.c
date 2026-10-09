@@ -1,4 +1,5 @@
 #include <usart.h>
+#include <stddef.h>
 
 static void usart_config_word_length(usart_word_length word_length, USART_TypeDef* instance);
 static void usart_config_stop_bits(usart_stop_bits stop_bits, USART_TypeDef* instance);
@@ -9,6 +10,13 @@ static uint32_t get_hsi_ker_frequency(void);
 static uint32_t get_csi_ker_frequency(void);
 static uint32_t get_lse_frequency(void);
 static void usart_config_baud_rate(usart_baud_rate baud_rate,struct usart_clock_config* clock_config, USART_TypeDef* instance);
+
+uint8_t *tx_data = NULL;
+uint32_t tx_buffer_size;
+
+volatile uint32_t tx_index = 0;
+
+static usart_callback application_callback = NULL;
 
 USART_TypeDef* usart_get_instance_handle(usart_instance instance) {
 	switch(instance) {
@@ -36,6 +44,7 @@ void usart_init(usart_instance usart_instance, struct usart_clock_config *clock_
 		GPIOA->AFR[1] |= (7U << 8);
 		RCC->CDCCIP2R &= ~(0b111 << 3);
 		RCC->CDCCIP2R |= (clock_config->clock_source << 3);
+		break;
 	case USART_INSTANCE_3:
 		// enable gpio alternate functions and apb clocks
 		RCC->AHB4ENR |= (1U << 3);
@@ -192,14 +201,29 @@ void usart_config(struct usart_config* config, struct usart_clock_config* clock_
     instance->CR1 |= (1U << 0);
 }
 
-void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size, USART_TypeDef* instance) {
+void usart_register_callback(usart_callback app_callback) {
+	application_callback = app_callback;
+}
+
+void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size, USART_TypeDef* instance, uint8_t transfer_type) {
 	instance->CR1 |= (1U << 3);
-	for(uint16_t i=0;i<buffer_size;i++) {
-		while(!(instance->ISR & 1U << 7)); // same bit used for fifo_en or not. if fifo_en bit states if fifo is empty and can be written. if not it is info about tx_rdr register if its moved its data to shift reg or not
-		instance->TDR = *(usart_data_out+i);
+	if (transfer_type == 0) { //polling
+		for(uint16_t i=0;i<buffer_size;i++) {
+			while(!(instance->ISR & 1U << 7)); // same bit used for fifo_en or not. if fifo_en bit states if fifo is empty and can be written. if not it is info about tx_rdr register if its moved its data to shift reg or not
+			instance->TDR = *(usart_data_out+i);
+		}
+		while(!(instance->ISR & 1U << 6));
+		instance->CR1 &= ~(1U << 3);
 	}
-	while(!(instance->ISR & 1U << 6));
-	instance->CR1 &= ~(1U << 3);
+	else if (transfer_type == 1) { //interrupt driven
+		tx_data = usart_data_out;
+		instance->CR1 |= (1U << 30);
+		tx_buffer_size = buffer_size;
+		tx_index = 0;
+		if (instance == USART1) NVIC_EnableIRQ(USART1_IRQn);
+		else if (instance == USART2) NVIC_EnableIRQ(USART2_IRQn);
+		else if (instance == USART3) NVIC_EnableIRQ(USART3_IRQn);
+	}
 }
 
 usart_status usart_receive_data(uint8_t *usart_data_in, uint16_t buffer_size, USART_TypeDef* instance) {
@@ -232,3 +256,28 @@ usart_status usart_receive_data(uint8_t *usart_data_in, uint16_t buffer_size, US
 	return STATUS_OK;
 }
 
+void USART1_IRQHandler(void)
+{
+	if (USART1->ISR & (1U << 23) && USART1->CR1 & (1U << 30)) { // enter when u get interrupt from txfe and only if
+		//txfeie is enabled. cause if txfeie is not enabled it means
+		//the flag is set by hw when fifo is empty but last data trasnfer already happened
+		while(tx_index < tx_buffer_size && (USART1->ISR & (1U << 7))) {
+			USART1->TDR = *(tx_data + tx_index);
+			tx_index++;
+		}
+		if (tx_index == tx_buffer_size) {
+			USART1->CR1 &= ~(1U << 30);  // Disable TXFEIE
+			USART1->ICR = (1U << 6);     // Clear TC flag
+			USART1->CR1 |= (1U << 6);
+		}
+	}
+
+	if (USART1->ISR & (1U << 6) && USART1->CR1 & (1U << 6)) {
+		if (tx_index == tx_buffer_size) {
+			USART1->CR1 &= ~(1U << 3);
+			USART1->CR1 &= ~(1U << 6);
+			USART1->CR1 &= ~(1U << 30);
+			if (application_callback != NULL) application_callback();
+		}
+	}
+}
