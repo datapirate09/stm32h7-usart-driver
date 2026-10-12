@@ -63,6 +63,7 @@ void usart_init(usart_instance usart_instance, struct usart_clock_config *clock_
 	default:
 		break;
 	}
+	RCC->AHB1ENR |= (1U << 0); // enable dma clock
 
 }
 
@@ -190,7 +191,7 @@ void usart_config(struct usart_config* config, struct usart_clock_config* clock_
     instance->PRESC = clock_config->prescaler;
     if (config->is_fifo_en) instance->CR1 |= (1U << 29);
     else instance->CR1 &= ~(1U << 29);
-    if (config->is_fifo_en) {
+    if (config->is_parity_enable) {
 		instance->CR1 |= (1U << 10);
 		if (config->parity == USART_EVEN_PARITY) instance->CR1 &= ~(1U << 9);
 		else instance->CR1 |= (1U << 9);
@@ -205,9 +206,9 @@ void usart_register_callback(usart_callback app_callback) {
 	application_callback = app_callback;
 }
 
-void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size, USART_TypeDef* instance, uint8_t transfer_type) {
+void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size, USART_TypeDef* instance, usart_transfer_mode transfer_type) {
 	instance->CR1 |= (1U << 3);
-	if (transfer_type == 0) { //polling
+	if (transfer_type == USART_POLLING_MODE) { //polling
 		for(uint16_t i=0;i<buffer_size;i++) {
 			while(!(instance->ISR & 1U << 7)); // same bit used for fifo_en or not. if fifo_en bit states if fifo is empty and can be written. if not it is info about tx_rdr register if its moved its data to shift reg or not
 			instance->TDR = *(usart_data_out+i);
@@ -215,7 +216,7 @@ void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size, USART_Ty
 		while(!(instance->ISR & 1U << 6));
 		instance->CR1 &= ~(1U << 3);
 	}
-	else if (transfer_type == 1) { //interrupt driven
+	else if (transfer_type == USART_INTERRUPT_MODE) { //interrupt driven
 		tx_data = usart_data_out;
 		instance->CR1 |= (1U << 30);
 		tx_buffer_size = buffer_size;
@@ -225,6 +226,24 @@ void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size, USART_Ty
 		else if (instance == USART3) NVIC_EnableIRQ(USART3_IRQn);
 	}
 }
+
+
+void usart_transmit_data_non_blocking(uint8_t *usart_data_out, uint16_t buffer_size, USART_TypeDef* instance, dma_stream stream) {
+	struct dma_config config = {
+			.buffer_size = buffer_size,
+			.direction = MEMORY_TO_PERIPHERAL,
+			.dma_mux_req = DMA_MUX_REQ_USART1_TX,
+			.mem_addr = (uint32_t*)usart_data_out,
+			.peri_addr = (uint32_t*)&instance->TDR,
+			.priority = PRIORITY_VERY_HIGH,
+			.threshold = FIFO_HALF_FULL,
+	};
+	struct dma_handle *handle = get_dma_stream_handler(stream);
+	config_dma(handle, &config);
+	instance->CR3 |= (1U << 7); // enable dma transmitter usart
+	instance->CR1 |= (1U << 3);
+}
+
 
 usart_status usart_receive_data(uint8_t *usart_data_in, uint16_t buffer_size, USART_TypeDef* instance) {
 	instance->CR1 |= (1U << 2);
@@ -279,5 +298,13 @@ void USART1_IRQHandler(void)
 			USART1->CR1 &= ~(1U << 30);
 			if (application_callback != NULL) application_callback();
 		}
+	}
+}
+
+void USART3_IRQHandler(void) {
+	if (USART3->ISR & (1U << 23) && USART3->ISR & (1U << 6)) {
+		USART3->CR1 &= ~(1U << 3);
+		USART3->CR1 &= ~(1U << 6);
+		USART3->CR1 &= ~(1U << 30);
 	}
 }

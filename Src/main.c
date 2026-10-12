@@ -21,6 +21,7 @@ struct usart_config usart_kernel_config = {
 		.noise_config = USART_NOISE_DETECTION_ENABLE,
 };
 
+usart_transfer_mode usart_transfer = USART_POLLING_MODE;
 USART_TypeDef *instance_handle;
 
 uint8_t transmit_buffer[BUFFER_SIZE];
@@ -49,8 +50,14 @@ void usart_example_process_action(void) {
 		for(uint16_t i=0;i<BUFFER_SIZE;i++) {
 			transmit_buffer[i] = (uint8_t)(i+1);
 		}
-		usart_transmit_data(transmit_buffer, sizeof(transmit_buffer)/sizeof(uint8_t), instance_handle, 0);
+		if (usart_transfer == USART_POLLING_MODE || usart_transfer == USART_INTERRUPT_MODE) {
+			usart_transmit_data(transmit_buffer, sizeof(transmit_buffer)/sizeof(uint8_t), instance_handle, USART_POLLING_MODE);
+		}
+		else if (usart_transfer == USART_DMA_MODE) {
+			usart_transmit_data_non_blocking(transmit_buffer, sizeof(transmit_buffer)/sizeof(uint8_t), instance_handle, DMA_STREAM1);
+		}
 		printf("Data transmitted successfully\n");
+		current_mode = TRANSMISSION_COMPLETED;
 		break;
 
 
@@ -59,6 +66,9 @@ void usart_example_process_action(void) {
 		if (status != STATUS_OK) {
 			printf("Receive error detected\n");
 		}
+		break;
+
+	case TRANSMISSION_COMPLETED:
 		break;
 
 	default:

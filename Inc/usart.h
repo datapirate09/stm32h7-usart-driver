@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "dma.h"
 #include "stm32h7a3xxq.h"
 
 
@@ -24,7 +25,8 @@ typedef enum {
 typedef enum {
 	USART_TRANSMIT = 0,
 	USART_RECEIVE = 1,
-	USART_MODE_LAST = 2
+	TRANSMISSION_COMPLETED = 2,
+	USART_MODE_LAST = 3
 } usart_mode;
 
 typedef enum {
@@ -80,6 +82,12 @@ typedef enum {
 	STATUS_USART_FRAMING_ERROR,
 } usart_status;
 
+typedef enum {
+	USART_POLLING_MODE,
+	USART_INTERRUPT_MODE,
+	USART_DMA_MODE,
+} usart_transfer_mode;
+
 struct usart_config {
     usart_instance instance;
     int is_fifo_en;
@@ -102,5 +110,6 @@ USART_TypeDef* usart_get_instance_handle(usart_instance instance);
 void usart_init(usart_instance usart_instance, struct usart_clock_config *clock_config);
 void usart_config(struct usart_config* config, struct usart_clock_config* clock_config, USART_TypeDef* instance);
 void usart_register_callback(usart_callback app_callback);
-void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size, USART_TypeDef* instance, uint8_t transfer_type);
+void usart_transmit_data(uint8_t *usart_data_out, uint16_t buffer_size, USART_TypeDef* instance, usart_transfer_mode transfer_type);
+void usart_transmit_data_non_blocking(uint8_t *usart_data_out, uint16_t buffer_size, USART_TypeDef* instance, dma_stream stream);
 usart_status usart_receive_data(uint8_t *usart_data_in, uint16_t buffer_size, USART_TypeDef* instance);
